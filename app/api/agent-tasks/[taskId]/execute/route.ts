@@ -4,6 +4,15 @@ import { createAgentPlan } from "@/lib/agents/ceo-router";
 import { createResearchPlan } from "@/lib/agents/research-agent";
 import { runTaskPlan } from "@/lib/agents/task-runner";
 
+async function recordEvent(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, projectId: string, eventType: string, message: string) {
+  const { error } = await supabase.from("system_events").insert({
+    project_id: projectId,
+    event_type: eventType,
+    message,
+  });
+  return error;
+}
+
 export async function POST(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = await params;
   const supabase = await createSupabaseServerClient();
@@ -31,7 +40,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ta
     .maybeSingle();
 
   if (agentError) return NextResponse.json({ error: agentError.message }, { status: 500 });
-  if (!agent) return NextResponse.json({ error: `No active ${plan.route.agent} agent is registered for this project.` }, { status: 409 });
+  if (!agent) {
+    await recordEvent(supabase, task.project_id, "agent_task_failed", `Task ${task.id} could not start: no active ${plan.route.agent} agent.`);
+    return NextResponse.json({ error: `No active ${plan.route.agent} agent is registered for this project.` }, { status: 409 });
+  }
+
+  const startEventError = await recordEvent(supabase, task.project_id, "agent_task_started", `Task ${task.id} routed to ${agent.name}.`);
+  if (startEventError) return NextResponse.json({ error: startEventError.message }, { status: 500 });
 
   const specialistPlan = plan.route.agent === "research" ? createResearchPlan(plan.objective) : null;
   const execution = runTaskPlan(plan);
@@ -52,6 +67,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ta
     .eq("project_id", task.project_id);
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+  const completionType = execution.status === "completed" ? "agent_task_completed" : "agent_task_failed";
+  const completionError = await recordEvent(supabase, task.project_id, completionType, `Task ${task.id} ${execution.status} by ${agent.name}.`);
+  if (completionError) return NextResponse.json({ error: completionError.message }, { status: 500 });
 
   return NextResponse.json({ taskId: task.id, status: execution.status, assignedAgent: agent, result });
 }
