@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ExecuteTaskButton } from "./ExecuteTaskButton";
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ projectId: string; taskId: string }> }) {
   const { projectId, taskId } = await params;
@@ -16,10 +17,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ pro
     .eq("project_id", projectId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
+  if (error) throw new Error(error.message);
   if (!task) notFound();
 
   return (
@@ -41,12 +39,14 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ pro
         <Info label="Updated" value={new Date(task.updated_at).toLocaleString()} />
       </div>
 
+      <ExecuteTaskButton taskId={task.id} />
+
       <article style={{ marginTop: 20, padding: 24, background: "#fff", border: "1px solid #e5e9f0", borderRadius: 12 }}>
         <h2 style={{ marginTop: 0 }}>Execution Result</h2>
         {task.result ? (
           <pre style={{ whiteSpace: "pre-wrap", overflowX: "auto", margin: 0, color: "#475467" }}>{JSON.stringify(task.result, null, 2)}</pre>
         ) : (
-          <p style={{ marginBottom: 0, color: "#667085" }}>No execution result yet. Agent orchestration will populate this area in the next milestone.</p>
+          <p style={{ marginBottom: 0, color: "#667085" }}>No execution result yet.</p>
         )}
       </article>
     </section>
