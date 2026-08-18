@@ -9,7 +9,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ proje
 
   const { data: events, error } = await supabase
     .from("system_events")
-    .select("id, event_type, message, created_at")
+    .select("id, event_type, severity, actor_type, entity_type, entity_id, payload, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -32,7 +32,9 @@ export default async function ActivityPage({ params }: { params: Promise<{ proje
                 <strong>{event.event_type}</strong>
                 <time style={{ color: "#667085", fontSize: 12 }}>{new Date(event.created_at).toLocaleString()}</time>
               </div>
-              {event.message && <p style={{ margin: "8px 0 0", color: "#475467" }}>{event.message}</p>}
+              <p style={{ margin: "8px 0 0", color: "#667085", fontSize: 13 }}>{event.severity} · {event.actor_type} · {event.entity_type ?? "system"}</p>
+              {event.entity_id && <p style={{ margin: "6px 0 0", fontSize: 12, color: "#98a2b3" }}>Entity: {event.entity_id}</p>}
+              <pre style={{ margin: "10px 0 0", whiteSpace: "pre-wrap", color: "#475467", fontSize: 12 }}>{JSON.stringify(event.payload, null, 2)}</pre>
             </article>
           ))}
         </div>
